@@ -28,10 +28,9 @@ contract Presale is ReentrancyGuard, Ownable, IPresale {
     }
 
     enum WhitelistType {
-        None, // Public presale
-        Merkle, // Whitelist based on Merkle root
-        NFT // Whitelist based on holding an NFT from a specific collection
-
+        None,
+        Merkle,
+        NFT
     }
 
     struct PresaleOptions {
@@ -51,9 +50,9 @@ contract Presale is ReentrancyGuard, Ownable, IPresale {
         uint256 vestingDuration;
         uint256 leftoverTokenOption;
         address currency;
-        WhitelistType whitelistType; // <<< ADDED
-        bytes32 merkleRoot; // <<< ADDED (Used if whitelistType is Merkle)
-        address nftContractAddress; // <<< ADDED (Used if whitelistType is NFT)
+        WhitelistType whitelistType; 
+        bytes32 merkleRoot; 
+        address nftContractAddress; 
     }
 
     struct LiquidityParams {
@@ -90,7 +89,7 @@ contract Presale is ReentrancyGuard, Ownable, IPresale {
     Vesting public immutable vestingContract;
     uint256 public immutable housePercentage;
     address public immutable houseAddress;
-    address public immutable _presaleFactory; // Stores the address of *our* PresaleFactory
+    address public immutable _presaleFactory; 
 
     PresaleOptions public options;
     PresaleState public state;
