@@ -34,8 +34,7 @@ contract DeployPresale is Script {
 
         console.log("PresaleFactory deployed to:", address(presaleFactory));
         // Log the internally deployed addresses if needed for verification
-        console.log(" -> LiquidityLocker deployed to:", address(presaleFactory.liquidityLocker()));
-        console.log(" -> Vesting deployed to:", address(presaleFactory.vestingContract()));
+   
 
         vm.stopBroadcast();
         return presaleFactory;

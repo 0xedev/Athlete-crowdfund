@@ -14,8 +14,6 @@ contract CreatePresale is Script {
     address factoryAddress = vm.envAddress("FACTORY_ADDRESS");
     address presaleTokenAddress = vm.envAddress("PRESALE_TOKEN_ADDRESS");
     address currencyTokenAddress = vm.envAddress("CURRENCY_TOKEN_ADDRESS");
-    address wethAddress = vm.envAddress("WETH_ADDRESS");
-    address routerAddress = vm.envAddress("ROUTER_ADDRESS");
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
     uint256 hardCap = vm.envUint("HARD_CAP");
@@ -23,15 +21,8 @@ contract CreatePresale is Script {
     uint256 minContribution = vm.envUint("MIN_CONTRIBUTION");
     uint256 maxContribution = vm.envUint("MAX_CONTRIBUTION");
     uint256 presaleRate = vm.envUint("PRESALE_RATE");
-    uint256 listingRate = vm.envUint("LISTING_RATE");
-    uint256 liquidityBps = vm.envUint("LIQUIDITY_BPS");
-    uint256 slippageBps = vm.envOr("SLIPPAGE_BPS", uint256(500));
     uint256 startOffset = vm.envOr("START_TIME_OFFSET", uint256(600));
     uint256 duration = vm.envOr("DURATION", uint256(600));
-    uint256 lockupDuration = vm.envOr("LOCKUP_DURATION", uint256(90 days));
-    uint256 vestingPercentage = vm.envOr("VESTING_PERCENTAGE", uint256(0));
-    uint256 vestingDuration = vm.envOr("VESTING_DURATION", uint256(0));
-    uint256 leftoverTokenOption = vm.envOr("LEFTOVER_OPTION", uint256(0));
     uint8 whitelistType = uint8(vm.envOr("WHITELIST_TYPE", uint256(0)));
     bytes32 merkleRoot = vm.envOr("MERKLE_ROOT", bytes32(0));
     address nftContractAddress = vm.envOr("NFT_CONTRACT_ADDRESS", address(0));
@@ -40,22 +31,17 @@ contract CreatePresale is Script {
         // --- Input Validation ---
         require(factoryAddress != address(0), "FACTORY_ADDRESS not set");
         require(presaleTokenAddress != address(0), "PRESALE_TOKEN_ADDRESS not set");
-        require(wethAddress != address(0), "WETH_ADDRESS not set");
-        require(routerAddress != address(0), "ROUTER_ADDRESS not set");
         require(hardCap > 0 && softCap > 0 && softCap <= hardCap, "Invalid caps");
         require(
             minContribution > 0 && maxContribution > 0 && minContribution <= maxContribution
                 && maxContribution <= hardCap,
             "Invalid contribution limits"
         );
-        require(presaleRate > 0 && listingRate > 0 && listingRate < presaleRate, "Invalid rates");
-        require(liquidityBps >= 5000 && liquidityBps <= 10000, "Invalid liquidity BPS (5000-10000)"); // Basic check
+        require(presaleRate > 0, "Invalid presale rate");
         require(whitelistType <= 2, "Invalid WHITELIST_TYPE (0, 1, or 2)");
         if (whitelistType == 1) {
-            // Merkle
             require(merkleRoot != bytes32(0), "MERKLE_ROOT required for WHITELIST_TYPE=1");
         } else if (whitelistType == 2) {
-            // NFT
             require(nftContractAddress != address(0), "NFT_CONTRACT_ADDRESS required for WHITELIST_TYPE=2");
         }
 
@@ -67,40 +53,41 @@ contract CreatePresale is Script {
         uint256 startTime = block.timestamp + startOffset;
         uint256 endTime = startTime + duration;
 
-        // Calculate required token deposit using the factory's helper
-        Presale.PresaleOptions memory optionsPreCalc = Presale.PresaleOptions({
-            tokenDeposit: 0, // Will be calculated
+        Presale.PresaleOptions memory options = Presale.PresaleOptions({
+            tokenDeposit: 0, // Will be set below
             hardCap: hardCap,
             softCap: softCap,
             min: minContribution,
             max: maxContribution,
             presaleRate: presaleRate,
-            listingRate: listingRate,
-            liquidityBps: liquidityBps,
-            slippageBps: slippageBps,
             start: startTime,
             end: endTime,
-            lockupDuration: lockupDuration,
-            vestingPercentage: vestingPercentage,
-            vestingDuration: vestingDuration,
-            leftoverTokenOption: leftoverTokenOption,
             currency: currencyTokenAddress,
-            whitelistType: Presale.WhitelistType(whitelistType), // Set from env var
-            merkleRoot: merkleRoot, // Set from env var
-            nftContractAddress: nftContractAddress // Set from env var
+            whitelistType: Presale.WhitelistType(whitelistType),
+            merkleRoot: merkleRoot,
+            nftContractAddress: nftContractAddress
         });
 
-        uint256 requiredTokenDeposit = factory.calculateTotalTokensNeededForPresale(optionsPreCalc, presaleTokenAddress);
-        console.log("Required Presale Token Deposit:", requiredTokenDeposit);
+        // Calculate required token deposit
+        // For a basic presale, this is usually: hardCap * presaleRate * 10**token.decimals() / currencyDecimals
+        uint8 tokenDecimals = presaleToken.decimals();
+        uint8 currencyDecimals = 18;
+        if (currencyTokenAddress != address(0)) {
+            try IERC20(currencyTokenAddress).decimals() returns (uint8 dec) {
+                currencyDecimals = dec;
+            } catch {}
+        }
+        uint256 tokensNeeded = (hardCap * presaleRate * (10 ** tokenDecimals)) / (10 ** currencyDecimals);
+        options.tokenDeposit = tokensNeeded;
 
-        Presale.PresaleOptions memory options = optionsPreCalc;
-        options.tokenDeposit = requiredTokenDeposit;
+        console.log("Required Presale Token Deposit:", tokensNeeded);
+
         // --- Approvals & Fee Handling ---
         vm.startBroadcast(deployerPrivateKey);
 
         // 1. Approve Presale Tokens
         console.log("Approving factory to spend presale tokens...");
-        presaleToken.approve(factoryAddress, requiredTokenDeposit);
+        presaleToken.approve(factoryAddress, tokensNeeded);
         console.log("Presale token approval successful.");
 
         // 2. Handle Creation Fee
@@ -117,7 +104,7 @@ contract CreatePresale is Script {
                 // ERC20 Fee
                 console.log("Approving factory to spend fee token:", feeTokenAddress);
                 IERC20 feeToken = IERC20(feeTokenAddress);
-                feeToken.approve(factoryAddress, creationFee); // Approve factory to pull fee
+                feeToken.approve(factoryAddress, creationFee);
                 console.log("Fee token approval successful.");
             }
         } else {
@@ -127,7 +114,7 @@ contract CreatePresale is Script {
         // --- Create Presale ---
         console.log("Creating presale...");
         presaleAddress =
-            factory.createPresale{value: ethFeeToSend}(options, presaleTokenAddress, wethAddress, routerAddress);
+            factory.createPresale{value: ethFeeToSend}(options, presaleTokenAddress);
 
         vm.stopBroadcast();
 
