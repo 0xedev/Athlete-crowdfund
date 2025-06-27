@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="fc:frame"
+      content='{ 
+        "version": "next",
+        "imageUrl": "https://raize-taupe.vercel.app/logo.png",
+        "button": {
+          "title": "Explore presales",
+          "action": {
+            "type": "launch_frame",
+            "url": "https://raize-taupe.vercel.app",
+            "name": "Raize",
+            "splashImageUrl": "https://raize-taupe.vercel.app/logo.png",
+            "splashBackgroundColor": "#1f2937"
+          }
+        }
+      }'
+    />
+
+    <meta
+      name="fc:frame-default-for-spa"
+      style="display: none"
+      content='{
+        "version": "next",
+        "imageUrl": "https://raize-taupe.vercel.app/image.png",
+        "button": {
+          "title": "Join Presale",
+          "action": {
+            "type": "launch_frame",
+            "url": "https://raize-taupe.vercel.app",
+            "name": "Raize",
+            "splashImageUrl": "https://raize-taupe.vercel.app/logo.jpg",
+            "splashBackgroundColor": "#1f2937"
+          }
+        }
+      }'
+    />
+    <title>Raize</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
